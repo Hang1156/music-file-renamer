@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>音乐文件重命名工具</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsmediatags@3.9.5/dist/jsmediatags.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+
+        .drop-zone {
+            border: 3px dashed #667eea;
+            border-radius: 10px;
+            padding: 50px;
+            text-align: center;
+            margin: 30px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            background: #f8f9ff;
+        }
+
+        .drop-zone:hover,
+        .drop-zone.dragover {
+            border-color: #764ba2;
+            background: #f0f2ff;
+            transform: scale(1.02);
+        }
+
+        .drop-zone-icon {
+            font-size: 4em;
+            color: #667eea;
+            margin-bottom: 20px;
+        }
+
+        .drop-zone-text {
+            font-size: 1.3em;
+            color: #333;
+            margin-bottom: 15px;
+        }
+
+        .drop-zone-hint {
+            color: #666;
+            font-size: 0.95em;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            font-size: 1em;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin: 10px;
+            display: inline-block;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+        }
+
+        .btn-success:hover {
+            box-shadow: 0 5px 20px rgba(17, 153, 142, 0.4);
+        }
+
+        .controls {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin: 20px 30px;
+            padding: 20px;
+            background: #f8f9ff;
+            border-radius: 10px;
+        }
+
+        .format-options {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .format-options label {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .format-options select {
+            padding: 8px 15px;
+            border: 2px solid #667eea;
+            border-radius: 5px;
+            font-size: 1em;
+            background: white;
+            cursor: pointer;
+        }
+
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            margin: 20px 30px;
+            padding: 20px;
+            background: #f8f9ff;
+            border-radius: 10px;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 2em;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .stat-label {
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .file-list {
+            margin: 20px 30px;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        .file-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .file-table thead {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .file-table th,
+        .file-table td {
+            padding: 15px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+
+        .file-table tbody tr:hover {
+            background: #f8f9ff;
+        }
+
+        .track-number {
+            font-weight: bold;
+            color: #667eea;
+            min-width: 50px;
+        }
+
+        .old-name {
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        .new-name {
+            color: #11998e;
+            font-weight: 600;
+        }
+
+        .status {
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+
+        .status-pending {
+            background: #ffeaa7;
+            color: #d63031;
+        }
+
+        .status-ready {
+            background: #55efc4;
+            color: #00b894;
+        }
+
+        .status-error {
+            background: #fab1a0;
+            color: #d63031;
+        }
+
+        .progress-container {
+            margin: 20px 30px;
+            padding: 20px;
+            background: #f8f9ff;
+            border-radius: 10px;
+            display: none;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .progress-text {
+            text-align: center;
+            margin-top: 10px;
+            font-weight: 600;
+            color: #667eea;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 1.8em;
+            }
+
+            .drop-zone {
+                padding: 30px;
+            }
+
+            .file-table {
+                font-size: 0.9em;
+            }
+
+            .file-table th,
+            .file-table td {
+                padding: 10px;
+            }
+
+            .stats {
+                flex-direction: column;
+                gap: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎵 音乐文件重命名工具</h1>
+            <p>基于音频元数据自动重命名您的音乐文件</p>
+        </div>
+
+        <div class="drop-zone" id="dropZone">
+            <div class="drop-zone-icon">📁</div>
+            <div class="drop-zone-text">拖拽音乐文件夹或文件到此处</div>
+            <div class="drop-zone-hint">支持 MP3、FLAC、WAV、OGG、M4A 等格式</div>
+            <button class="btn" onclick="document.getElementById('fileInput').click()">
+                或点击选择文件
+            </button>
+            <input type="file" id="fileInput" class="file-input" multiple accept=".mp3,.flac,.wav,.ogg,.m4a,.aac,.wma">
+        </div>
+
+        <div class="controls hidden" id="controls">
+            <div class="format-options">
+                <label for="nameFormat">命名格式:</label>
+                <select id="nameFormat">
+                    <option value="{track} - {artist} - {title}">{轨道号} - {艺术家} - {标题}</option>
+                    <option value="{artist} - {album} - {track} - {title}">{艺术家} - {专辑} - {轨道号} - {标题}</option>
+                    <option value="{artist} - {title}">{艺术家} - {标题}</option>
+                    <option value="{track} - {title}">{轨道号} - {标题}</option>
+                    <option value="{title}">{标题}</option>
+                </select>
+            </div>
+            <button class="btn" onclick="processFiles()">🔄 重新处理</button>
+            <button class="btn btn-success" id="downloadBtn" onclick="downloadZip()" disabled>
+                📦 下载 ZIP
+            </button>
+        </div>
+
+        <div class="stats hidden" id="stats">
+            <div class="stat-item">
+                <div class="stat-number" id="totalFiles">0</div>
+                <div class="stat-label">总文件数</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number" id="processedFiles">0</div>
+                <div class="stat-label">已处理</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number" id="readyFiles">0</div>
+                <div class="stat-label">可下载</div>
+            </div>
+        </div>
+
+        <div class="progress-container" id="progressContainer">
+            <div class="progress-text" id="progressText">处理中... 0%</div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+        </div>
+
+        <div class="file-list hidden" id="fileList">
+            <table class="file-table">
+                <thead>
+                    <tr>
+                        <th>轨道号</th>
+                        <th>原文件名</th>
+                        <th>新文件名</th>
+                        <th>状态</th>
+                    </tr>
+                </thead>
+                <tbody id="fileTableBody">
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // 全局变量
+        let filesData = [];
+        let processedCount = 0;
+        let readyCount = 0;
+
+        // DOM 元素
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const controls = document.getElementById('controls');
+        const stats = document.getElementById('stats');
+        const fileList = document.getElementById('fileList');
+        const fileTableBody = document.getElementById('fileTableBody');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressFill = document.getElementById('progressFill');
+        const progressText = document.getElementById('progressText');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const nameFormat = document.getElementById('nameFormat');
+
+        // 拖拽事件处理
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            handleFiles(e.dataTransfer.files);
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            handleFiles(e.target.files);
+        });
+
+        // 处理文件
+        async function handleFiles(files) {
+            // 重置状态
+            filesData = [];
+            processedCount = 0;
+            readyCount = 0;
+            fileTableBody.innerHTML = '';
+            
+            // 过滤音频文件
+            const audioExtensions = ['.mp3', '.flac', '.wav', '.ogg', '.m4a', '.aac', '.wma'];
+            const audioFiles = Array.from(files).filter(file => {
+                const ext = '.' + file.name.split('.').pop().toLowerCase();
+                return audioExtensions.includes(ext);
+            });
+
+            if (audioFiles.length === 0) {
+                alert('未找到支持的音频文件！\n支持的格式：MP3, FLAC, WAV, OGG, M4A, AAC, WMA');
+                return;
+            }
+
+            // 显示控制区域
+            controls.classList.remove('hidden');
+            stats.classList.remove('hidden');
+            fileList.classList.remove('hidden');
+            
+            // 更新统计
+            document.getElementById('totalFiles').textContent = audioFiles.length;
+            document.getElementById('processedFiles').textContent = '0';
+            document.getElementById('readyFiles').textContent = '0';
+
+            // 显示进度条
+            progressContainer.style.display = 'block';
+            downloadBtn.disabled = true;
+
+            // 处理每个文件
+            for (let i = 0; i < audioFiles.length; i++) {
+                await processFile(audioFiles[i], i, audioFiles.length);
+            }
+
+            // 隐藏进度条
+            progressContainer.style.display = 'none';
+            downloadBtn.disabled = readyCount === 0;
+        }
+
+        // 处理单个文件
+        function processFile(file, index, total) {
+            return new Promise((resolve) => {
+                // 添加到表格
+                const row = document.createElement('tr');
+                row.id = `file-${index}`;
+                row.innerHTML = `
+                    <td class="track-number">-</td>
+                    <td class="old-name">${file.name}</td>
+                    <td class="new-name">读取中...</td>
+                    <td><span class="status status-pending">等待中</span></td>
+                `;
+                fileTableBody.appendChild(row);
+
+                // 读取元数据
+                jsmediatags.read(file, {
+                    onSuccess: function(tag) {
+                        const tags = tag.tags;
+                        
+                        // 提取信息
+                        const track = tags.track || '';
+                        const artist = tags.artist || '未知艺术家';
+                        const title = tags.title || file.name.replace(/\.[^/.]+$/, '');
+                        const album = tags.album || '';
+                        
+                        // 生成新文件名
+                        const newName = generateFileName(track, artist, title, album, file);
+                        
+                        // 更新数据
+                        filesData.push({
+                            file: file,
+                            originalName: file.name,
+                            newName: newName,
+                            track: track,
+                            artist: artist,
+                            title: title,
+                            album: album,
+                            status: 'ready'
+                        });
+
+                        // 更新表格
+                        updateTableRow(index, track, newName, 'ready');
+                        
+                        // 更新统计
+                        processedCount++;
+                        readyCount++;
+                        updateStats();
+                        
+                        resolve();
+                    },
+                    onError: function(error) {
+                        // 读取失败，使用原文件名
+                        const newName = file.name;
+                        
+                        filesData.push({
+                            file: file,
+                            originalName: file.name,
+                            newName: newName,
+                            track: '',
+                            artist: '',
+                            title: '',
+                            album: '',
+                            status: 'error'
+                        });
+
+                        // 更新表格
+                        updateTableRow(index, '', newName, 'error', error.message);
+                        
+                        // 更新统计
+                        processedCount++;
+                        updateStats();
+                        
+                        resolve();
+                    }
+                });
+            });
+        }
+
+        // 生成文件名
+        function generateFileName(track, artist, title, album, file) {
+            const format = nameFormat.value;
+            let name = format;
+            
+            // 格式化轨道号（补零）
+            const trackNum = track ? String(track).padStart(2, '0') : '';
+            
+            // 替换占位符
+            name = name.replace('{track}', trackNum);
+            name = name.replace('{artist}', artist);
+            name = name.replace('{title}', title);
+            name = name.replace('{album}', album);
+            
+            // 清理无效字符
+            name = name.replace(/[<>:"/\\|?*]/g, '_');
+            name = name.replace(/\s+/g, ' ').trim();
+            name = name.replace(/^-+|-+$/g, '');
+            
+            // 添加扩展名
+            const ext = file.name.split('.').pop();
+            name = name + '.' + ext;
+            
+            return name;
+        }
+
+        // 更新表格行
+        function updateTableRow(index, track, newName, status, errorMsg = '') {
+            const row = document.getElementById(`file-${index}`);
+            if (!row) return;
+            
+            const trackCell = row.querySelector('.track-number');
+            const new_nameCell = row.querySelector('.new-name');
+            const statusCell = row.querySelector('.status');
+            
+            trackCell.textContent = track || '-';
+            new_nameCell.textContent = newName;
+            
+            if (status === 'ready') {
+                statusCell.className = 'status status-ready';
+                statusCell.textContent = '就绪';
+            } else if (status === 'error') {
+                statusCell.className = 'status status-error';
+                statusCell.textContent = '错误';
+                new_nameCell.title = errorMsg;
+            }
+        }
+
+        // 更新统计
+        function updateStats() {
+            document.getElementById('processedFiles').textContent = processedCount;
+            document.getElementById('readyFiles').textContent = readyCount;
+            
+            // 更新进度条
+            const progress = filesData.length > 0 ? Math.round((processedCount / filesData.length) * 100) : 0;
+            progressFill.style.width = progress + '%';
+            progressText.textContent = `处理中... ${progress}%`;
+        }
+
+        // 重新处理所有文件
+        function processFiles() {
+            const currentFiles = filesData.map(item => item.file);
+            handleFiles(currentFiles);
+        }
+
+        // 下载 ZIP
+        async function downloadZip() {
+            const readyFiles = filesData.filter(item => item.status === 'ready');
+            
+            if (readyFiles.length === 0) {
+                alert('没有可下载的文件！');
+                return;
+            }
+
+            // 禁用按钮
+            downloadBtn.disabled = true;
+            downloadBtn.textContent = '⏳ 打包中...';
+
+            // 创建 ZIP
+            const zip = new JSZip();
+            
+            // 添加文件到 ZIP
+            readyFiles.forEach((item, index) => {
+                zip.file(item.newName, item.file);
+                
+                // 更新进度
+                const progress = Math.round(((index + 1) / readyFiles.length) * 100);
+                progressText.textContent = `打包中... ${progress}%`;
+                progressFill.style.width = progress + '%';
+            });
+
+            try {
+                // 生成并下载 ZIP
+                const content = await zip.generateAsync({type: 'blob'});
+                saveAs(content, 'renamed_music.zip');
+                
+                // 恢复按钮
+                downloadBtn.disabled = false;
+                downloadBtn.textContent = '📦 下载 ZIP';
+                progressText.textContent = '打包完成！';
+                
+            } catch (error) {
+                console.error('ZIP 生成失败:', error);
+                alert('生成 ZIP 文件失败，请重试！');
+                downloadBtn.disabled = false;
+                downloadBtn.textContent = '📦 下载 ZIP';
+            }
+        }
+
+        // 监听格式变化
+        nameFormat.addEventListener('change', () => {
+            if (filesData.length > 0) {
+                processFiles();
+            }
+        });
+    </script>
+</body>
+</html>
